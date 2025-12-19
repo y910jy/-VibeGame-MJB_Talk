@@ -1,0 +1,828 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>묵찌빠 (메신저 UI + 자동 라운드 + 이모티콘)</title>
+  <style>
+    :root{
+      --chat-bg: #b2c7da;
+      --border: rgba(0,0,0,.08);
+      --text: #111827;
+      --muted: rgba(17,24,39,.55);
+
+      --bubble-left: #ffffff;
+      --bubble-right: #fee500;
+      --bubble-sys: rgba(255,255,255,.55);
+
+      --pad: 14px;
+      --safeB: env(safe-area-inset-bottom);
+      --safeT: env(safe-area-inset-top);
+    }
+    *{ box-sizing: border-box; }
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
+      color: var(--text);
+      background: var(--chat-bg);
+    }
+
+    /* 헤더 */
+    .header{
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      padding: calc(10px + var(--safeT)) var(--pad) 10px var(--pad);
+      background: rgba(255,255,255,.92);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border);
+    }
+    .headerRow{ display:flex; align-items:center; gap: 10px; }
+    .back, .iconBtn{
+      width: 34px; height: 34px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: #fff;
+      display:flex; align-items:center; justify-content:center;
+      font-weight: 900;
+      user-select:none;
+      box-shadow: 0 6px 16px rgba(0,0,0,.06);
+    }
+    .titleWrap{ flex:1; min-width:0; }
+    .title{
+      font-weight: 900;
+      font-size: 16px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .subtitle{
+      margin-top:2px;
+      font-size: 12px;
+      color: var(--muted);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .headerBtns{ display:flex; gap: 8px; }
+
+    /* 본문 */
+    .wrap{
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 10px var(--pad) calc(190px + var(--safeB)) var(--pad);
+    }
+    .pills{
+      display:flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin: 10px 0 10px;
+    }
+    .pill{
+      background: rgba(255,255,255,.92);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 8px 10px;
+      font-size: 12px;
+      box-shadow: 0 6px 16px rgba(0,0,0,.06);
+      white-space: nowrap;
+    }
+
+    .chatStage{
+      background: rgba(255,255,255,.08);
+      border: 1px solid rgba(255,255,255,.18);
+      border-radius: 22px;
+      padding: 10px;
+    }
+    .statusLine{
+      margin: 2px 4px 10px;
+      font-weight: 900;
+      color: rgba(17,24,39,.92);
+      text-shadow: 0 1px 0 rgba(255,255,255,.35);
+    }
+
+    .chat{
+      height: min(64vh, 560px);
+      overflow: auto;
+      padding: 10px 8px;
+      display:flex;
+      flex-direction: column;
+      gap: 10px;
+      scroll-behavior: smooth;
+    }
+
+    .row{
+      display:flex;
+      align-items:flex-end;
+      gap: 8px;
+    }
+    .row.left{ justify-content:flex-start; }
+    .row.right{ justify-content:flex-end; }
+    .row.sys{ justify-content:center; }
+
+    .avatar{
+      width: 32px; height: 32px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.80);
+      display:flex; align-items:center; justify-content:center;
+      font-weight: 900; font-size: 12px;
+      user-select:none;
+      flex: 0 0 auto;
+    }
+
+    .bubble{
+      position: relative;
+      max-width: 78%;
+      padding: 10px 12px;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      box-shadow: 0 6px 16px rgba(0,0,0,.08);
+      line-height: 1.45;
+      font-size: 13px;
+      white-space: pre-wrap;
+      word-break: keep-all;
+    }
+    .bubble.left{
+      background: var(--bubble-left);
+      border-top-left-radius: 6px;
+    }
+    .bubble.right{
+      background: var(--bubble-right);
+      border-top-right-radius: 6px;
+      font-weight: 900;
+    }
+    .bubble.sys{
+      background: var(--bubble-sys);
+      border-color: rgba(255,255,255,.40);
+      box-shadow: none;
+      font-weight: 900;
+      text-align:center;
+      max-width: 92%;
+    }
+
+    .bubble.left::before{
+      content:"";
+      position:absolute;
+      left: -6px;
+      bottom: 10px;
+      width: 10px; height: 10px;
+      background: var(--bubble-left);
+      border-left: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      transform: rotate(45deg);
+    }
+    .bubble.right::before{
+      content:"";
+      position:absolute;
+      right: -6px;
+      bottom: 10px;
+      width: 10px; height: 10px;
+      background: var(--bubble-right);
+      border-right: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      transform: rotate(-45deg);
+    }
+
+    .meta{
+      font-size: 11px;
+      color: rgba(17,24,39,.55);
+      white-space: nowrap;
+      user-select:none;
+      margin-bottom: 2px;
+    }
+
+    .readLine{
+      font-size: 11px;
+      color: rgba(17,24,39,.55);
+      user-select:none;
+      margin-right: 6px;
+      text-align: right;
+      min-width: 36px;
+    }
+
+    /* 타이핑 인디케이터 */
+    .typing{
+      display:inline-flex;
+      gap: 4px;
+      align-items:center;
+      padding: 8px 10px;
+      background: var(--bubble-left);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      border-top-left-radius: 6px;
+      box-shadow: 0 6px 16px rgba(0,0,0,.08);
+      position: relative;
+      max-width: 78%;
+    }
+    .typing::before{
+      content:"";
+      position:absolute;
+      left: -6px;
+      bottom: 10px;
+      width: 10px; height: 10px;
+      background: var(--bubble-left);
+      border-left: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      transform: rotate(45deg);
+    }
+    .dot{
+      width: 6px; height: 6px;
+      border-radius: 999px;
+      background: rgba(17,24,39,.35);
+      animation: bounce 1.1s infinite;
+    }
+    .dot:nth-child(2){ animation-delay: .15s; }
+    .dot:nth-child(3){ animation-delay: .30s; }
+    @keyframes bounce{
+      0%, 80%, 100% { transform: translateY(0); opacity: .55; }
+      40% { transform: translateY(-4px); opacity: 1; }
+    }
+
+    /* 하단 컴포저 */
+    .composer{
+      position: fixed;
+      left: 0; right: 0; bottom: 0;
+      z-index: 30;
+      padding: 10px var(--pad) calc(10px + var(--safeB)) var(--pad);
+      background: rgba(255,255,255,.92);
+      backdrop-filter: blur(10px);
+      border-top: 1px solid var(--border);
+    }
+    .composerInner{
+      max-width: 980px;
+      margin: 0 auto;
+      display:grid;
+      gap: 10px;
+    }
+    .actions{
+      display:flex;
+      gap: 8px;
+      justify-content:flex-end;
+      flex-wrap: wrap;
+    }
+    button.small{
+      height: 40px;
+      padding: 0 12px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background:#fff;
+      box-shadow: 0 6px 16px rgba(0,0,0,.06);
+      font-weight: 900;
+      cursor: pointer;
+    }
+    button.small:disabled{ opacity:.55; cursor:not-allowed; box-shadow:none; }
+
+    .inputRow{
+      display:flex;
+      gap: 8px;
+      align-items:center;
+    }
+    .plusBtn{
+      width: 40px; height: 40px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background:#fff;
+      box-shadow: 0 6px 16px rgba(0,0,0,.06);
+      font-weight: 900;
+      user-select:none;
+      display:flex; align-items:center; justify-content:center;
+    }
+    .fakeInput{
+      flex:1;
+      height: 40px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: #fff;
+      box-shadow: 0 6px 16px rgba(0,0,0,.06);
+      padding: 0 12px;
+      display:flex;
+      align-items:center;
+      color: rgba(17,24,39,.55);
+      font-size: 13px;
+      user-select:none;
+    }
+    .sendBtn{
+      width: 54px; height: 40px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: var(--bubble-right);
+      box-shadow: 0 6px 16px rgba(0,0,0,.10);
+      font-weight: 900;
+      user-select:none;
+      display:flex; align-items:center; justify-content:center;
+    }
+
+    .quickRow{
+      display:grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+    }
+    button.quick{
+      height: 54px;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      background: #fff;
+      box-shadow: 0 8px 20px rgba(0,0,0,.08);
+      font-size: 16px;
+      font-weight: 900;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+    button.quick:active{ transform: translateY(1px); }
+    button.quick:disabled{ opacity: .55; cursor:not-allowed; box-shadow:none; }
+
+    /* ===== 이미지 말풍선(선택/이모티콘) ===== */
+    .bubble.image{
+      padding: 6px;
+      background: transparent;
+      border: none;
+      box-shadow: none;
+    }
+    .bubble.image::before{ display:none; }
+    .bubble.image img{
+      max-width: 140px;
+      border-radius: 16px;
+      display: block;
+      box-shadow: 0 8px 20px rgba(0,0,0,.12);
+    }
+
+    /* 버튼에도 아이콘처럼 보여주기(옵션) */
+    .btnIcon{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap: 8px;
+    }
+    .btnIcon img{
+      width: 26px;
+      height: 26px;
+      border-radius: 8px;
+      object-fit: cover;
+      border: 1px solid rgba(0,0,0,.06);
+    }
+
+    @media (max-width: 720px){
+      .bubble{ max-width: 88%; }
+      .chat{ height: min(66vh, 560px); }
+      .bubble.image img{ max-width: 120px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="headerRow">
+      <div class="back">‹</div>
+      <div class="titleWrap">
+        <div class="title">묵찌빠 대결방</div>
+        <div class="subtitle" id="headerSub">컴퓨터 vs 플레이어 · 3판 2선승</div>
+      </div>
+      <div class="headerBtns">
+        <div class="iconBtn">☎</div>
+        <div class="iconBtn">≡</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="pills">
+      <div class="pill" id="pillPhase">단계: -</div>
+      <div class="pill" id="pillAttacker">공격자: -</div>
+      <div class="pill" id="pillRound">라운드: 1</div>
+      <div class="pill" id="pillMatch">매치: 플레이어 0승 : 0승 컴퓨터 (2승 선취)</div>
+    </div>
+
+    <div class="chatStage">
+      <div class="statusLine" id="status">R1 시작: 아래에서 묵/찌/빠를 눌러 진행하세요.</div>
+      <div class="chat" id="chat"></div>
+    </div>
+  </div>
+
+  <div class="composer">
+    <div class="composerInner">
+      <div class="actions">
+        <!-- 자동 라운드 진행이므로, 버튼은 남겨두되 기본 비활성/숨김 느낌 -->
+        <button class="small" id="btnNextRound" disabled title="라운드는 자동으로 넘어갑니다">다음 라운드(자동)</button>
+        <button class="small" id="btnRestartMatch">매치 재시작</button>
+      </div>
+
+      <div class="inputRow">
+        <div class="plusBtn">＋</div>
+        <div class="fakeInput">메시지를 입력하세요… (아래 버튼으로 묵/찌/빠 이모티콘 전송)</div>
+        <div class="sendBtn">전송</div>
+      </div>
+
+      <div class="quickRow">
+        <button class="quick btnIcon" id="btnRock"><img src="./Rock.png" alt="묵(바위)">묵</button>
+        <button class="quick btnIcon" id="btnScissors"><img src="./Scissors.png" alt="찌(가위)">찌</button>
+        <button class="quick btnIcon" id="btnPaper"><img src="./Paper.png" alt="빠(보)">빠</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+  // ====== 유틸 ======
+  const MOVES = ["rock", "scissors", "paper"];
+  const MOVE_KO = { rock: "묵", scissors: "찌", paper: "빠" };
+
+  // 이미지 파일(HTML과 같은 폴더)
+  const IMG = {
+    rock: "./Rock.png",
+    scissors: "./Scissors.png",
+    paper: "./Paper.png",
+    win: "./Win.png",
+    lose: "./Lose.png",
+  };
+
+  const AUTO_NEXT_DELAY_MS = 650; // 라운드 이모티콘 나온 뒤 자동 진행 딜레이
+
+  function randomMove(){ return MOVES[Math.floor(Math.random() * MOVES.length)]; }
+
+  // 결과: "win" | "lose" | "draw" (플레이어 기준)
+  function rpsResult(player, cpu){
+    if(player === cpu) return "draw";
+    if(
+      (player === "rock" && cpu === "scissors") ||
+      (player === "scissors" && cpu === "paper") ||
+      (player === "paper" && cpu === "rock")
+    ) return "win";
+    return "lose";
+  }
+
+  function nowHHMM(){
+    const d = new Date();
+    const hh = String(d.getHours()).padStart(2,"0");
+    const mm = String(d.getMinutes()).padStart(2,"0");
+    return `${hh}:${mm}`;
+  }
+
+  // ====== 상태 ======
+  let phase = "rps";       // "rps" | "mjp"
+  let attacker = null;     // "player" | "cpu" | null
+  let roundOver = false;
+  let matchOver = false;
+
+  let roundNo = 1;
+  let matchWinsPlayer = 0;
+  let matchWinsCpu = 0;
+  const WIN_TARGET = 2;
+
+  // 타이핑 인디케이터 제어
+  let cpuTypingRow = null;
+  let cpuTypingTimeout = null;
+
+  // (읽음) 가장 최근 플레이어 메시지의 readLine 추적
+  let lastMyReadLine = null;
+
+  // 자동 라운드 진행 타이머(중복 방지)
+  let autoNextTimer = null;
+
+  // ====== DOM ======
+  const chatEl = document.getElementById("chat");
+  const statusEl = document.getElementById("status");
+  const headerSub = document.getElementById("headerSub");
+
+  const pillPhase = document.getElementById("pillPhase");
+  const pillAttacker = document.getElementById("pillAttacker");
+  const pillRound = document.getElementById("pillRound");
+  const pillMatch = document.getElementById("pillMatch");
+
+  const btnRock = document.getElementById("btnRock");
+  const btnScissors = document.getElementById("btnScissors");
+  const btnPaper = document.getElementById("btnPaper");
+  const btnNextRound = document.getElementById("btnNextRound");
+  const btnRestartMatch = document.getElementById("btnRestartMatch");
+
+  function phaseLabel(){ return phase === "rps" ? "가위바위보(공격자 결정)" : "묵찌빠"; }
+  function attackerLabel(){
+    if(!attacker) return "-";
+    return attacker === "player" ? "플레이어" : "컴퓨터";
+  }
+  function roleOf(who){
+    if(!attacker) return "수비자";
+    return attacker === who ? "공격자" : "수비자";
+  }
+
+  function setButtonsEnabled(enabled){
+    [btnRock, btnScissors, btnPaper].forEach(b => b.disabled = !enabled);
+  }
+
+  function render(){
+    pillPhase.textContent = `단계: ${phaseLabel()}`;
+    pillAttacker.textContent = `공격자: ${attackerLabel()}`;
+    pillRound.textContent = `라운드: ${roundNo}`;
+    pillMatch.textContent = `매치: 플레이어 ${matchWinsPlayer}승 : ${matchWinsCpu}승 컴퓨터 (${WIN_TARGET}승 선취)`;
+    headerSub.textContent = `컴퓨터(${roleOf("cpu")}) vs 플레이어(${roleOf("player")}) · 3판 2선승`;
+
+    const canPlay = !matchOver && !roundOver;
+    setButtonsEnabled(canPlay);
+
+    // 자동 라운드 진행: 버튼은 안내용으로만
+    btnNextRound.disabled = true;
+  }
+
+  // ====== 채팅 UI ======
+  function scrollToBottom(){
+    chatEl.scrollTop = chatEl.scrollHeight;
+  }
+
+  function addSys(text){
+    const row = document.createElement("div");
+    row.className = "row sys";
+    const bubble = document.createElement("div");
+    bubble.className = "bubble sys";
+    bubble.textContent = text;
+    row.appendChild(bubble);
+    chatEl.appendChild(row);
+    scrollToBottom();
+  }
+
+  function addCpuText(text, meta){
+    const row = document.createElement("div");
+    row.className = "row left";
+
+    const avatar = document.createElement("div");
+    avatar.className = "avatar cpu";
+    avatar.textContent = "C";
+
+    const bubble = document.createElement("div");
+    bubble.className = "bubble left";
+    bubble.textContent = text;
+
+    const metaEl = document.createElement("div");
+    metaEl.className = "meta";
+    metaEl.textContent = meta || nowHHMM();
+
+    row.appendChild(avatar);
+    row.appendChild(bubble);
+    row.appendChild(metaEl);
+
+    chatEl.appendChild(row);
+    scrollToBottom();
+  }
+
+  function addPlayerText(text, meta){
+    const row = document.createElement("div");
+    row.className = "row right";
+
+    const readLine = document.createElement("div");
+    readLine.className = "readLine";
+    readLine.textContent = "전송됨";
+
+    const metaEl = document.createElement("div");
+    metaEl.className = "meta";
+    metaEl.textContent = meta || nowHHMM();
+
+    const bubble = document.createElement("div");
+    bubble.className = "bubble right";
+    bubble.textContent = text;
+
+    row.appendChild(readLine);
+    row.appendChild(metaEl);
+    row.appendChild(bubble);
+
+    chatEl.appendChild(row);
+    scrollToBottom();
+
+    if(lastMyReadLine) lastMyReadLine.textContent = "읽음";
+    lastMyReadLine = readLine;
+
+    setTimeout(() => {
+      if(readLine === lastMyReadLine) readLine.textContent = "읽음";
+    }, 250);
+  }
+
+  // ===== 이미지 말풍선 =====
+  function addPlayerImage(imgSrc, altText){
+    const row = document.createElement("div");
+    row.className = "row right";
+
+    const readLine = document.createElement("div");
+    readLine.className = "readLine";
+    readLine.textContent = "읽음";
+
+    const bubble = document.createElement("div");
+    bubble.className = "bubble right image";
+
+    const img = document.createElement("img");
+    img.src = imgSrc;
+    img.alt = altText;
+
+    bubble.appendChild(img);
+    row.appendChild(readLine);
+    row.appendChild(bubble);
+
+    chatEl.appendChild(row);
+    scrollToBottom();
+
+    if(lastMyReadLine) lastMyReadLine.textContent = "읽음";
+  }
+
+  function addCpuImage(imgSrc, altText){
+    const row = document.createElement("div");
+    row.className = "row left";
+
+    const avatar = document.createElement("div");
+    avatar.className = "avatar cpu";
+    avatar.textContent = "C";
+
+    const bubble = document.createElement("div");
+    bubble.className = "bubble left image";
+
+    const img = document.createElement("img");
+    img.src = imgSrc;
+    img.alt = altText;
+
+    bubble.appendChild(img);
+    row.appendChild(avatar);
+    row.appendChild(bubble);
+
+    chatEl.appendChild(row);
+    scrollToBottom();
+  }
+
+  // ===== 타이핑 인디케이터 =====
+  function showCpuTyping(){
+    hideCpuTyping();
+
+    const row = document.createElement("div");
+    row.className = "row left";
+
+    const avatar = document.createElement("div");
+    avatar.className = "avatar cpu";
+    avatar.textContent = "C";
+
+    const typing = document.createElement("div");
+    typing.className = "typing";
+    typing.innerHTML = `<span class="dot"></span><span class="dot"></span><span class="dot"></span>`;
+
+    row.appendChild(avatar);
+    row.appendChild(typing);
+
+    chatEl.appendChild(row);
+    cpuTypingRow = row;
+    scrollToBottom();
+  }
+
+  function hideCpuTyping(){
+    if(cpuTypingTimeout){
+      clearTimeout(cpuTypingTimeout);
+      cpuTypingTimeout = null;
+    }
+    if(cpuTypingRow && cpuTypingRow.parentNode){
+      cpuTypingRow.parentNode.removeChild(cpuTypingRow);
+    }
+    cpuTypingRow = null;
+  }
+
+  // ===== 라운드/매치 =====
+  function clearAutoNext(){
+    if(autoNextTimer){
+      clearTimeout(autoNextTimer);
+      autoNextTimer = null;
+    }
+  }
+
+  function scheduleAutoNextRound(){
+    clearAutoNext();
+    if(matchOver) return;
+
+    autoNextTimer = setTimeout(() => {
+      if(matchOver) return;
+      roundNo += 1;
+      startNewRound();
+    }, AUTO_NEXT_DELAY_MS);
+  }
+
+  function startNewRound(){
+    phase = "rps";
+    attacker = null;
+    roundOver = false;
+
+    statusEl.textContent = `R${roundNo} 시작: 아래에서 묵/찌/빠를 눌러 진행하세요.`;
+    addSys(`R${roundNo} 시작`);
+    render();
+  }
+
+  function endRound(winner){ // "player" | "cpu"
+    roundOver = true;
+
+    if(winner === "player") matchWinsPlayer += 1;
+    else matchWinsCpu += 1;
+
+    // 라운드 결과 시스템 메시지
+    const roundMsg = (winner === "player")
+      ? `R${roundNo} 승리! :D (플레이어)`
+      : `R${roundNo} 패배… T_T (컴퓨터)`;
+    addSys(roundMsg);
+
+    // ✅ 라운드마다 승/패 이모티콘(플레이어만)
+    if(winner === "player"){
+      addPlayerImage(IMG.win, "승리 이모티콘 (Win)");
+    } else {
+      addPlayerImage(IMG.lose, "패배 이모티콘 (Lose)");
+    }
+
+    // 매치 종료 체크
+    if(matchWinsPlayer >= WIN_TARGET || matchWinsCpu >= WIN_TARGET){
+      matchOver = true;
+      const matchWinner = matchWinsPlayer >= WIN_TARGET ? "플레이어" : "컴퓨터";
+      const matchMsg = (matchWinner === "플레이어")
+        ? `매치 승리!! ^^ (2승 선취)`
+        : `매치 패배… ㅠㅠ (상대 2승 선취)`;
+      addSys(matchMsg);
+      statusEl.textContent = `매치 종료! ${matchWinner}가 ${WIN_TARGET}승 선취 🎉 (매치 재시작 가능)`;
+      render();
+      return; // ❗ 매치 끝이면 자동 라운드 진행 안 함
+    }
+
+    statusEl.textContent = `라운드 종료! ${winner === "player" ? "플레이어" : "컴퓨터"} 승리 🏁 (자동으로 다음 라운드로 넘어갑니다)`;
+    render();
+
+    // ✅ (요청1) 최종 승리자가 생기기 전까지 자동 라운드 진행(이모티콘 후)
+    scheduleAutoNextRound();
+  }
+
+  function resetMatch(){
+    hideCpuTyping();
+    clearAutoNext();
+
+    phase = "rps";
+    attacker = null;
+    roundOver = false;
+    matchOver = false;
+
+    roundNo = 1;
+    matchWinsPlayer = 0;
+    matchWinsCpu = 0;
+
+    chatEl.innerHTML = "";
+    lastMyReadLine = null;
+
+    addSys("매치 재시작");
+    statusEl.textContent = "매치가 재시작되었습니다. 아래에서 묵/찌/빠 이모티콘을 전송하세요.";
+    render();
+  }
+
+  // ===== 턴 처리(타이핑 포함) =====
+  function onTurn(playerMove){
+    if(matchOver || roundOver) return;
+
+    // 플레이어는 선택도 "이모티콘"으로 전송
+    addPlayerImage(IMG[playerMove], `플레이어 선택: ${MOVE_KO[playerMove]}`);
+
+    // 컴퓨터는 타이핑 후 선택을 이모티콘으로 전송
+    showCpuTyping();
+    setButtonsEnabled(false);
+
+    const cpuDelay = 420 + Math.floor(Math.random() * 380);
+    cpuTypingTimeout = setTimeout(() => {
+      hideCpuTyping();
+
+      const cpuMove = randomMove();
+      const result = rpsResult(playerMove, cpuMove);
+
+      addCpuImage(IMG[cpuMove], `컴퓨터 선택: ${MOVE_KO[cpuMove]}`);
+
+      // 1) 공격자 결정
+      if(phase === "rps"){
+        if(result === "draw"){
+          statusEl.textContent = "무승부! 다시 가위바위보(공격자 결정).";
+          addSys("무승부 → 공격자 미정(재시도) :|");
+          render();
+          return;
+        }
+        attacker = (result === "win") ? "player" : "cpu";
+        phase = "mjp";
+        statusEl.textContent = `${attackerLabel()}가 공격자! 이제 묵찌빠`;
+        addSys(`공격자 결정 → ${attackerLabel()} (묵찌빠 시작)`);
+        render();
+        return;
+      }
+
+      // 2) 묵찌빠
+      if(playerMove === cpuMove){
+        addSys(`같은 수! 공격자(${attackerLabel()}) 라운드 승리! ${attacker === "player" ? "^^" : "ㅠㅠ"}`);
+        endRound(attacker);
+        return;
+      }
+
+      // 다른 수면 공격자 변경
+      attacker = (result === "win") ? "player" : "cpu";
+      statusEl.textContent = `공격자 변경! 현재 공격자: ${attackerLabel()}`;
+      addSys(`공격자 변경 → ${attackerLabel()} ${attacker === "player" ? ":)" : ":("}`);
+      render();
+    }, cpuDelay);
+  }
+
+  // ===== 이벤트 =====
+  btnRock.addEventListener("click", () => onTurn("rock"));
+  btnScissors.addEventListener("click", () => onTurn("scissors"));
+  btnPaper.addEventListener("click", () => onTurn("paper"));
+  btnRestartMatch.addEventListener("click", () => resetMatch());
+
+  // (자동 라운드라 클릭은 무효/안내용)
+  btnNextRound.addEventListener("click", () => { /* noop */ });
+
+  // 초기
+  render();
+  startNewRound();
+</script>
+</body>
+</html>
